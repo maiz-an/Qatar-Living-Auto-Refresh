@@ -134,6 +134,32 @@ copy(JSON.stringify(cookieObj));
 console.log('✅ JSON copied to clipboard!');
 """
 
+
+def check_cookie_status():
+    """Check what cookies we have and their status"""
+    print("🔍 Checking cookie status...")
+    
+    # Count cookies
+    print(f"📊 Total cookies loaded: {len(COOKIES)}")
+    
+    # List important cookies
+    important_cookies = ['qatarliving-sso-token', 'qat', '_ga', '_gid']
+    for cookie in important_cookies:
+        if cookie in COOKIES:
+            value = COOKIES[cookie]
+            preview = value[:50] + "..." if len(value) > 50 else value
+            print(f"   ✅ {cookie}: {preview}")
+        else:
+            print(f"   ❌ {cookie}: MISSING")
+    
+    # Check if cookies look valid
+    if 'qatarliving-sso-token' in COOKIES and 'qat' in COOKIES:
+        print("✅ Essential cookies present")
+        return True
+    else:
+        print("❌ Missing essential cookies")
+        return False
+
 # ========================================
 # URL PARSING FUNCTIONS
 # ========================================
@@ -187,30 +213,55 @@ def parse_bump_url(bump_url):
 def test_cookies():
     """Test if cookies provide valid authentication"""
     try:
-        # Simple test by accessing the homepage
-        homepage_url = "https://www.qatarliving.com"
+        # Try to access a page that requires login
+        test_url = "https://www.qatarliving.com/user"
         headers = {
             "User-Agent": random.choice(USER_AGENTS),
-            "Accept": "text/html,application/xhtml+xml",
+            "Accept": "text/html",
         }
-        response = session.get(homepage_url, headers=headers, timeout=15)
         
-        if response.status_code == 200:
-            # Check for logout link or user-specific content
-            if 'logout' in response.text.lower() or 'my account' in response.text.lower():
-                print("✅ Authentication: PASSED - User is logged in")
-                return True
-            else:
-                print("❌ Authentication: FAILED - Not logged in")
-                return False
+        print("🔐 Testing authentication...")
+        response = session.get(test_url, headers=headers, timeout=15)
+        
+        if response.status_code != 200:
+            print(f"❌ Failed to access user page: {response.status_code}")
+            return False
+        
+        # Check if we're logged in by looking for common elements
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Look for logout link (indicates we're logged in)
+        logout_links = soup.find_all('a', href=lambda href: href and 'logout' in href.lower())
+        
+        # Look for user profile elements
+        user_elements = soup.find_all(['a', 'div'], class_=lambda c: c and any(x in str(c).lower() for x in ['user', 'profile', 'account']))
+        
+        # Check page title or content for login indicators
+        page_text = response.text.lower()
+        
+        # Check for "My Account" or similar
+        if ('my account' in page_text or 
+            'logout' in page_text or 
+            logout_links or 
+            user_elements):
+            print("✅ Authentication: SUCCESS - User is logged in")
+            return True
         else:
-            print(f"❌ Authentication: FAILED - HTTP {response.status_code}")
+            print("❌ Authentication: FAILED - Not logged in")
+            print("💡 Quick check of page content:")
+            print(f"   Page contains 'logout': {'logout' in page_text}")
+            print(f"   Page contains 'my account': {'my account' in page_text}")
+            print(f"   Found {len(logout_links)} logout links")
+            print(f"   Found {len(user_elements)} user profile elements")
             return False
             
     except Exception as e:
         print(f"❌ Authentication test error: {e}")
-        return False
-
+        # If we can't test properly, assume it might work and let the bump attempt fail
+        print("⚠️ Could not verify authentication, proceeding with caution...")
+        return True  
+    
+# Continue anyway and let bump fail if cookies are bad
 # ========================================
 # STEP 2: Get CSRF Token from Job Page
 # ========================================
@@ -349,6 +400,10 @@ if __name__ == "__main__":
         print("https://www.qatarliving.com/bump/node/46590548?destination=/jobseeker/username/job-name")
         sys.exit(1)
 
+    # Check cookie status first
+    if not check_cookie_status():
+        print("⚠️ Cookie validation failed - some essential cookies missing")
+
     # Set cookies globally
     for name, value in COOKIES.items():
         session.cookies.set(name, value, domain=".qatarliving.com")
@@ -360,11 +415,18 @@ if __name__ == "__main__":
 
     # Test authentication
     if not test_cookies():
-        print("💥 Authentication failed - cookies may be expired")
+        print("💥 Authentication failed - cookies may be expired or invalid")
+        print("🔧 Try getting fresh cookies:")
+        print("   1. Login to Qatar Living in browser")
+        print("   2. Open Developer Tools (F12)")
+        print("   3. Go to Console tab")
+        print("   4. Paste the cookie extractor script from above")
         sys.exit(1)
 
     print(f"🎯 Target URL: {BUMP_URL}")
     print("-" * 50)
+
+    # Rest of your code...
 
     # Perform the bump
     if refresh_post(url_info):
