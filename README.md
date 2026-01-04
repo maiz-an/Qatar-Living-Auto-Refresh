@@ -55,14 +55,14 @@ A GitHub Actions workflow that automatically bumps your Qatar Living job posts t
    - The JSON is automatically copied to your clipboard
    - Save it somewhere safe (like a text file) for the next step
 
-### Step 3: Get Your Bump URL
+### Step 3: Get Your Refresh Button URL
 
 1. **Go to Your Job Post**
    - Navigate to your job posting on Qatar Living
-   - Look for the "Bump to top" button/link
+   - Look for the "Refresh this ad"
 
-2. **Copy the Bump URL**
-   - Right-click on "Bump to top" → "Copy link address"
+2. **Copy the Refresh this ad URL**
+   - Right-click on "Refresh this ad" → "Copy link address"
    - Or find it in the page source
    - The URL should look like:
 
