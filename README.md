@@ -118,6 +118,13 @@ schedule:
   - cron: '30 4,9,12 * * *'  # Change these times
 ```
 
+other corntime examples
+```yaml
+  - cron: '0 9,12,16 * * *'      # 9 AM, 12 PM, 4 PM
+  - cron: '0 8,13,17 * * *'      # 8 AM, 1 PM, 5 PM
+  - cron: '0 10,14,18 * * *'     # 10 AM, 2 PM, 6 PM
+```
+
 ### Manual Runs
 
 You can manually trigger bumps anytime:
