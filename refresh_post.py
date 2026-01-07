@@ -448,22 +448,47 @@ def get_csrf_token(destination):
         token_input = soup.find("input", {"name": "form_token"})
         if token_input and token_input.get("value"):
             token = token_input["value"]
-            print(f"🔑 CSRF Token found: {token[:20]}...")
+            print(f"🔑 CSRF Token (form_token) found: {token[:20]}...")
             return token
 
         # Alternative: look for form_build_id
         build_id = soup.find("input", {"name": "form_build_id"})
         if build_id and build_id.get("value"):
-            print(f"🔑 Form Build ID found: {build_id['value'][:20]}...")
-            return build_id["value"]
+            token = build_id["value"]
+            print(f"🔑 Form Build ID (form_build_id) found: {token[:20]}...")
+            return token
+        
+        # Try to find any hidden input with value
+        hidden_inputs = soup.find_all("input", {"type": "hidden"})
+        for hidden in hidden_inputs:
+            if hidden.get("value") and len(hidden.get("value", "")) > 10:
+                token = hidden["value"]
+                name = hidden.get("name", "unknown")
+                print(f"🔑 Found hidden input '{name}': {token[:20]}...")
+                return token
 
         print("❌ No CSRF token or form_build_id found")
+        print("   Looking for form structure...")
+        
+        # Debug: print form structure
+        forms = soup.find_all("form")
+        for i, form in enumerate(forms):
+            action = form.get("action", "")
+            if "bump" in action:
+                print(f"   Found bump form (action: {action})")
+                inputs = form.find_all("input")
+                for inp in inputs:
+                    name = inp.get("name", "")
+                    value = inp.get("value", "")
+                    if value:
+                        print(f"     Input: {name} = {value[:30]}...")
+
         return None
 
     except Exception as e:
         print(f"❌ Error fetching CSRF: {e}")
         return None
-
+    
 # ========================================
 # STEP 3: Perform Bump (POST with CSRF)
 # ========================================
@@ -473,30 +498,56 @@ def refresh_post(url_info):
         print("💥 Cannot proceed without CSRF token")
         return False
 
+    # First, let's try a simple GET request to see if it works
+    print("🔍 Testing direct GET approach first...")
+    get_url = f"{url_info['bump_url']}?destination={url_info['destination']}"
+    headers = {
+        "User-Agent": random.choice(USER_AGENTS),
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Referer": f"https://www.qatarliving.com{url_info['destination']}",
+        "Upgrade-Insecure-Requests": "1",
+    }
+    
+    # Try GET first (since we know it works)
+    try:
+        get_response = session.get(get_url, headers=headers, timeout=30)
+        if any(word in get_response.text.lower() for word in ["bumped", "success", "refreshed"]) or url_info['destination'] in get_response.url:
+            print("✅ SUCCESS: Post bumped via GET!")
+            return True
+    except Exception as e:
+        print(f"⚠️ GET approach failed: {e}")
+
+    # If GET doesn't work, try POST with better headers
     for attempt in range(1, MAX_RETRIES + 1):
         try:
+            # Improved headers for POST request
             headers = {
                 "User-Agent": random.choice(USER_AGENTS),
-                "Accept": "text/html,application/xhtml+xml",
-                "Accept-Language": "en-US,en;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.5",
                 "Accept-Encoding": "gzip, deflate, br",
                 "Referer": f"https://www.qatarliving.com{url_info['destination']}",
                 "Origin": "https://www.qatarliving.com",
+                "DNT": "1",
                 "Connection": "keep-alive",
                 "Upgrade-Insecure-Requests": "1",
                 "Sec-Fetch-Dest": "document",
                 "Sec-Fetch-Mode": "navigate",
                 "Sec-Fetch-Site": "same-origin",
+                "Sec-Fetch-User": "?1",
+                "Cache-Control": "max-age=0",
                 "Content-Type": "application/x-www-form-urlencoded",
             }
 
-            # Try POST first
+            # Try POST with form data
             data = {
                 "form_id": "classified_bump_form",
                 "form_token": csrf_token,
-                "form_build_id": csrf_token,  # sometimes reused
-                "bump": "Bump to top",
-                "destination": url_info['destination']
+                "form_build_id": csrf_token,
+                "op": "Bump to top",  # Changed from 'bump' to 'op'
+                "destination": url_info['destination'],
+                "submit": "Bump to top"  # Added submit button
             }
 
             print(f"🔄 Attempt {attempt}/{MAX_RETRIES} (POST bump)...")
@@ -509,26 +560,74 @@ def refresh_post(url_info):
             )
 
             print(f"📊 Status: {response.status_code}")
+            
+            # Debug info for 403 errors
+            if response.status_code == 403:
+                print("⚠️ Got 403 Forbidden - checking response headers...")
+                print(f"   Content-Type: {response.headers.get('Content-Type', 'Not set')}")
+                print(f"   Location: {response.headers.get('Location', 'Not set')}")
+                
+                # Save response for debugging (truncated)
+                if len(response.text) > 500:
+                    response_preview = response.text[:500] + "..."
+                else:
+                    response_preview = response.text
+                
+                print(f"   Response preview: {response_preview[:200]}...")
+                
+                # Check for specific error messages
+                if "access denied" in response.text.lower():
+                    print("   ❌ Access denied - cookies might be invalid")
+                elif "csrf" in response.text.lower():
+                    print("   ❌ CSRF token validation failed")
+                elif "forbidden" in response.text.lower():
+                    print("   ❌ Forbidden - possible IP restriction or rate limiting")
+            
             print(f"📍 Final URL: {response.url}")
 
-            if response.status_code in [200, 302]:
-                if any(word in response.text.lower() for word in ["bumped", "success", "refreshed"]):
+            if response.status_code in [200, 302, 303]:
+                # Check for success indicators
+                success_indicators = [
+                    "bumped", "success", "refreshed", "bump successful",
+                    "ad has been bumped", "moved to the top"
+                ]
+                
+                response_lower = response.text.lower()
+                if any(word in response_lower for word in success_indicators):
                     print("✅ SUCCESS: Post bumped via POST!")
                     logging.info("Post bumped successfully via POST")
                     return True
+                
+                # Check if redirected to job page
                 if url_info['destination'] in response.url:
                     print("✅ SUCCESS: Redirected to job page after bump")
                     logging.info("Redirected to job page - bump likely succeeded")
                     return True
-
-            # Fallback: Try GET if POST fails
-            if attempt == 1:
-                print("⚠️ POST failed, trying GET fallback...")
-                get_url = f"{url_info['bump_url']}?destination={url_info['destination']}"
-                get_response = session.get(get_url, headers=headers, timeout=30)
-                if any(word in get_response.text.lower() for word in ["bumped", "success", "refreshed"]) or url_info['destination'] in get_response.url:
-                    print("✅ SUCCESS: Post bumped via GET fallback!")
+                
+                # Check for form resubmission (means it worked)
+                if "form" not in response_lower or "resubmit" in response_lower:
+                    print("✅ SUCCESS: Form processed (possible resubmission)")
                     return True
+
+            # Fallback: Try GET with different parameters
+            if response.status_code == 403:
+                print("⚠️ POST failed with 403, trying alternative GET approach...")
+                
+                # Try different GET variations
+                get_variations = [
+                    f"{url_info['bump_url']}?destination={url_info['destination']}&op=Bump+to+top",
+                    f"{url_info['bump_url']}?destination={url_info['destination']}&form_id=classified_bump_form",
+                    f"{url_info['bump_url']}?destination={url_info['destination']}&bump=Bump+to+top"
+                ]
+                
+                for get_variant in get_variations:
+                    try:
+                        get_response = session.get(get_variant, headers=headers, timeout=30)
+                        if any(word in get_response.text.lower() for word in success_indicators) or url_info['destination'] in get_response.url:
+                            print(f"✅ SUCCESS: Post bumped via GET variant!")
+                            return True
+                    except:
+                        continue
 
         except Exception as e:
             print(f"❌ Error on attempt {attempt}: {e}")
@@ -540,6 +639,18 @@ def refresh_post(url_info):
             time.sleep(wait)
 
     print("🚫 All attempts failed")
+    
+    # Final fallback: Try one more GET request
+    print("🔄 Trying final GET fallback...")
+    try:
+        final_get_url = f"{url_info['bump_url']}?destination={url_info['destination']}"
+        final_response = session.get(final_get_url, timeout=30)
+        if url_info['destination'] in final_response.url:
+            print("✅ SUCCESS: Post bumped via final GET fallback!")
+            return True
+    except:
+        pass
+    
     return False
 
 # ========================================
