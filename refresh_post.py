@@ -10,6 +10,56 @@ import sys
 import json
 
 # ========================================
+# THEME CONFIGURATION
+# ========================================
+# ========================================
+# THEME CONFIGURATION
+# ========================================
+class SpiderManTheme:
+    # Color codes
+    RED = '\033[91m'
+    BLUE = '\033[94m'
+    YELLOW = '\033[93m'
+    GREEN = '\033[92m'
+    PURPLE = '\033[95m'
+    CYAN = '\033[96m'
+    BOLD = '\033[1m'
+    END = '\033[0m'
+    
+    @staticmethod
+    def print_header(text):
+        print(f"\n{SpiderManTheme.RED}{SpiderManTheme.BOLD}🕷️ {text}{SpiderManTheme.END}")
+        print(f"{SpiderManTheme.BLUE}{'═' * 60}{SpiderManTheme.END}")
+    
+    @staticmethod
+    def print_success(text):
+        print(f"{SpiderManTheme.GREEN}{SpiderManTheme.BOLD}{text}{SpiderManTheme.END}")
+    
+    @staticmethod
+    def print_info(text):
+        print(f"{SpiderManTheme.BLUE}{SpiderManTheme.BOLD}🕸️ {text}{SpiderManTheme.END}")
+    
+    @staticmethod
+    def print_warning(text):
+        print(f"{SpiderManTheme.YELLOW}{SpiderManTheme.BOLD}⚠️ {text}{SpiderManTheme.END}")
+    
+    @staticmethod
+    def print_error(text):
+        print(f"{SpiderManTheme.RED}{SpiderManTheme.BOLD}❌ {text}{SpiderManTheme.END}")
+    
+    @staticmethod
+    def print_spider(text):
+        print(f"{SpiderManTheme.PURPLE}{SpiderManTheme.BOLD}🕷️ {text}{SpiderManTheme.END}")
+    
+    @staticmethod
+    def print_web(text):
+        print(f"{SpiderManTheme.CYAN}{SpiderManTheme.BOLD}🕸️ {text}{SpiderManTheme.END}")
+    
+    @staticmethod
+    def print_action(text):
+        print(f"{SpiderManTheme.RED}{SpiderManTheme.BOLD}🎬 {text}{SpiderManTheme.END}")
+
+# ========================================
 # GITHUB ACTIONS CONFIGURATION
 # ========================================
 # Check if running on GitHub Actions
@@ -177,10 +227,10 @@ console.log('✅ JSON copied to clipboard!');
 
 def check_cookie_status():
     """Check what cookies we have and their status"""
-    print("🔍 Checking cookie status...")
+    SpiderManTheme.print_info(f"🔍 Checking cookie status...")
     
     # Count cookies
-    print(f"📊 Total cookies loaded: {len(COOKIES)}")
+    SpiderManTheme.print_info(f"📊 Total cookies loaded: {len(COOKIES)}")
     
     # List important cookies
     important_cookies = ['qatarliving-sso-token', 'qat', '_ga', '_gid']
@@ -188,16 +238,16 @@ def check_cookie_status():
         if cookie in COOKIES:
             value = COOKIES[cookie]
             preview = value[:50] + "..." if len(value) > 50 else value
-            print(f"   ✅ {cookie}: {preview}")
+            SpiderManTheme.print_info(f" {cookie}: {preview}")
         else:
-            print(f"   ❌ {cookie}: MISSING")
+            SpiderManTheme.print_warning(f" {cookie}: MISSING")
     
     # Check if cookies look valid
     if 'qatarliving-sso-token' in COOKIES and 'qat' in COOKIES:
-        print("✅ Essential cookies present")
+        SpiderManTheme.print_info(" Essential cookies present")
         return True
     else:
-        print("❌ Missing essential cookies")
+        SpiderManTheme.print_warning(" Missing essential cookies")
         return False
 
 # ========================================
@@ -492,14 +542,16 @@ def get_csrf_token(destination):
 # ========================================
 # STEP 3: Perform Bump (POST with CSRF)
 # ========================================
+
 def refresh_post(url_info):
+    SpiderManTheme.print_action("Thwip! Launching web to bump post...")
     csrf_token = get_csrf_token(url_info['destination'])
     if not csrf_token:
-        print("💥 Cannot proceed without CSRF token")
+        SpiderManTheme.print_error("No CSRF token - Can't stick the landing!")
         return False
 
     # First, let's try a simple GET request to see if it works
-    print("🔍 Testing direct GET approach first...")
+    SpiderManTheme.print_action("Testing direct GET approach first...")
     get_url = f"{url_info['bump_url']}?destination={url_info['destination']}"
     headers = {
         "User-Agent": random.choice(USER_AGENTS),
@@ -513,10 +565,10 @@ def refresh_post(url_info):
     try:
         get_response = session.get(get_url, headers=headers, timeout=30)
         if any(word in get_response.text.lower() for word in ["bumped", "success", "refreshed"]) or url_info['destination'] in get_response.url:
-            print("✅ SUCCESS: Post bumped via GET!")
+            SpiderManTheme.print_success("🕷️  Web shot! Post bumped via GET!")
             return True
     except Exception as e:
-        print(f"⚠️ GET approach failed: {e}")
+        SpiderManTheme.print_warning(f"GET approach failed: {e}")
 
     # If GET doesn't work, try POST with better headers
     for attempt in range(1, MAX_RETRIES + 1):
@@ -545,12 +597,12 @@ def refresh_post(url_info):
                 "form_id": "classified_bump_form",
                 "form_token": csrf_token,
                 "form_build_id": csrf_token,
-                "op": "Bump to top",  # Changed from 'bump' to 'op'
+                "op": "Bump to top",
                 "destination": url_info['destination'],
-                "submit": "Bump to top"  # Added submit button
+                "submit": "Bump to top"
             }
 
-            print(f"🔄 Attempt {attempt}/{MAX_RETRIES} (POST bump)...")
+            SpiderManTheme.print_info(f"Spider-Sense tingling! Attempt {attempt}/{MAX_RETRIES} (POST bump)...")
             response = session.post(
                 url_info['bump_url'],
                 headers=headers,
@@ -559,13 +611,13 @@ def refresh_post(url_info):
                 allow_redirects=True
             )
 
-            print(f"📊 Status: {response.status_code}")
+            SpiderManTheme.print_web(f"Status: {response.status_code}")
             
             # Debug info for 403 errors
             if response.status_code == 403:
-                print("⚠️ Got 403 Forbidden - checking response headers...")
-                print(f"   Content-Type: {response.headers.get('Content-Type', 'Not set')}")
-                print(f"   Location: {response.headers.get('Location', 'Not set')}")
+                SpiderManTheme.print_warning("Got 403 Forbidden - Venom is blocking our way!")
+                SpiderManTheme.print_info(f"   Content-Type: {response.headers.get('Content-Type', 'Not set')}")
+                SpiderManTheme.print_info(f"   Location: {response.headers.get('Location', 'Not set')}")
                 
                 # Save response for debugging (truncated)
                 if len(response.text) > 500:
@@ -573,17 +625,17 @@ def refresh_post(url_info):
                 else:
                     response_preview = response.text
                 
-                print(f"   Response preview: {response_preview[:200]}...")
+                SpiderManTheme.print_info(f"   Response preview: {response_preview[:200]}...")
                 
                 # Check for specific error messages
                 if "access denied" in response.text.lower():
-                    print("   ❌ Access denied - cookies might be invalid")
+                    SpiderManTheme.print_error("   Access denied - cookies might be invalid")
                 elif "csrf" in response.text.lower():
-                    print("   ❌ CSRF token validation failed")
+                    SpiderManTheme.print_error("   CSRF token validation failed")
                 elif "forbidden" in response.text.lower():
-                    print("   ❌ Forbidden - possible IP restriction or rate limiting")
+                    SpiderManTheme.print_error("   Forbidden - possible IP restriction or rate limiting")
             
-            print(f"📍 Final URL: {response.url}")
+            SpiderManTheme.print_web(f"Final URL: {response.url}")
 
             if response.status_code in [200, 302, 303]:
                 # Check for success indicators
@@ -594,24 +646,24 @@ def refresh_post(url_info):
                 
                 response_lower = response.text.lower()
                 if any(word in response_lower for word in success_indicators):
-                    print("✅ SUCCESS: Post bumped via POST!")
+                    SpiderManTheme.print_success("Bullseye! Post bumped via POST!")
                     logging.info("Post bumped successfully via POST")
                     return True
                 
                 # Check if redirected to job page
                 if url_info['destination'] in response.url:
-                    print("✅ SUCCESS: Redirected to job page after bump")
+                    SpiderManTheme.print_success("Perfect landing! Redirected to job page after bump")
                     logging.info("Redirected to job page - bump likely succeeded")
                     return True
                 
                 # Check for form resubmission (means it worked)
                 if "form" not in response_lower or "resubmit" in response_lower:
-                    print("✅ SUCCESS: Form processed (possible resubmission)")
+                    SpiderManTheme.print_success("Form processed - mission accomplished!")
                     return True
 
             # Fallback: Try GET with different parameters
             if response.status_code == 403:
-                print("⚠️ POST failed with 403, trying alternative GET approach...")
+                SpiderManTheme.print_warning("POST failed with 403, trying alternative web pattern...")
                 
                 # Try different GET variations
                 get_variations = [
@@ -624,32 +676,32 @@ def refresh_post(url_info):
                     try:
                         get_response = session.get(get_variant, headers=headers, timeout=30)
                         if any(word in get_response.text.lower() for word in success_indicators) or url_info['destination'] in get_response.url:
-                            print(f"✅ SUCCESS: Post bumped via GET variant!")
+                            SpiderManTheme.print_success(f"Creative web work! Post bumped via GET variant!")
                             return True
                     except:
                         continue
 
         except Exception as e:
-            print(f"❌ Error on attempt {attempt}: {e}")
+            SpiderManTheme.print_error(f"Error on attempt {attempt}: {e}")
             logging.error(f"Attempt {attempt} failed: {e}")
 
         if attempt < MAX_RETRIES:
             wait = random.uniform(5, MAX_WAIT)
-            print(f"⏳ Waiting {wait:.1f}s before retry...")
+            SpiderManTheme.print_info(f"Taking cover! Waiting {wait:.1f}s before next attempt...")
             time.sleep(wait)
 
-    print("🚫 All attempts failed")
+    SpiderManTheme.print_error("All attempts failed - Green Goblin wins this round")
     
     # Final fallback: Try one more GET request
-    print("🔄 Trying final GET fallback...")
+    SpiderManTheme.print_action("Trying one last web shot...")
     try:
         final_get_url = f"{url_info['bump_url']}?destination={url_info['destination']}"
         final_response = session.get(final_get_url, timeout=30)
         if url_info['destination'] in final_response.url:
-            print("✅ SUCCESS: Post bumped via final GET fallback!")
+            SpiderManTheme.print_success("Last second save! Post bumped via final web shot!")
             return True
-    except:
-        pass
+    except Exception as e:
+        SpiderManTheme.print_warning(f"Final attempt failed: {e}")
     
     return False
 
@@ -657,22 +709,29 @@ def refresh_post(url_info):
 # MAIN
 # ========================================
 if __name__ == "__main__":
-    print("🔁 Qatar Living Auto-Refresh Job Started")
-    print(f"🕒 Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print("-" * 50)
-
+    # Print Spider-Man banner
+    print(f"{SpiderManTheme.RED}{SpiderManTheme.BOLD}")
+    print("╔══════════════════════════════════════════════════════════╗")
+    print("║              🕷️  QATAR LIVING AUTO-REFRESH 🕷️              ║")
+    print("║                           v2.7                           ║")
+    print("╚══════════════════════════════════════════════════════════╝")
+    print(f"{SpiderManTheme.END}")
+    
+    SpiderManTheme.print_header("Mission Started")
+    print(f"{SpiderManTheme.BLUE}🕒 Mission Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{SpiderManTheme.END}")
+    print(f"{SpiderManTheme.BLUE}{'─' * 60}{SpiderManTheme.END}")
+    
     if not COOKIES:
-        print("💥 No cookies available - cannot proceed")
+        SpiderManTheme.print_error("No cookies available - With great power comes great responsibility!")
         if not IS_GITHUB_ACTIONS:
-            print("-" * 50)
-            print("🔄 Need fresh cookies? Run this in browser console:")
-            print(COOKIE_FINDER_SCRIPT)
+            SpiderManTheme.print_info("Need fresh cookies? Run this in browser console:")
+            SpiderManTheme.print_warning(COOKIE_FINDER_SCRIPT)
         sys.exit(1)
 
     if not BUMP_URL:
-        print("💥 No bump URL available - cannot proceed")
-        print("📝 Example URL format:")
-        print("https://www.qatarliving.com/bump/node/46590548?destination=/jobseeker/username/job-name")
+        SpiderManTheme.print_error("No bump URL available - Can't swing without a destination!")
+        SpiderManTheme.print_info("Example URL format:")
+        SpiderManTheme.print_info("https://www.qatarliving.com/bump/node/46590548?destination=/jobseeker/username/job-name")
         sys.exit(1)
 
     # Check cookie status first
@@ -690,18 +749,18 @@ if __name__ == "__main__":
 
     # Test authentication
     if not test_cookies():
-        print("💥 Authentication failed - cookies may be expired or invalid")
-        print("🔧 Try getting fresh cookies:")
-        print("   1. Login to Qatar Living in browser")
-        print("   2. Open Developer Tools (F12)")
-        print("   3. Go to Console tab")
-        print("   4. Paste the cookie extractor script from above")
+        SpiderManTheme.print_error("Authentication failed - Can't access the Daily Bugle!")
+        SpiderManTheme.print_info("Try getting fresh cookies:")
+        SpiderManTheme.print_info("1. Login to Qatar Living in browser")
+        SpiderManTheme.print_info("2. Open Developer Tools (F12)")
+        SpiderManTheme.print_info("3. Go to Console tab")
+        SpiderManTheme.print_info("4. Paste the cookie extractor script from above")
         sys.exit(1)
     else:
         # Extract and display username
         username = extract_username()
         if username:
-            print(f"👤 Logged in as: {username}")
+            SpiderManTheme.print_success(f"Identity verified: Peter Parker ({username})")
             # Also try to get more user info from the qat cookie
             if 'qat' in COOKIES:
                 try:
@@ -728,17 +787,19 @@ if __name__ == "__main__":
                 except:
                     pass
         else:
-            print("👤 User is logged in (could not extract username)")
+            SpiderManTheme.print_info("User is logged in (Secret identity protected)")
 
     print(f"🎯 Target URL: {BUMP_URL}")
     print("-" * 50)
     
     # Perform the bump
     if refresh_post(url_info):
-        print("🎉 Refresh completed successfully!")
+        SpiderManTheme.print_success("🕷️  Refresh completed successfully! 🎉")
+        SpiderManTheme.print_success("🕷️  Swinging away! 🕸️")
+        SpiderManTheme.print_success("🕷️  A Maiz's System. 🕷️ ")
         sys.exit(0)
     else:
-        print("💥 Refresh failed")
+        SpiderManTheme.print_error("💥 Refresh failed")
         sys.exit(1)
 
     print("-" * 50)
