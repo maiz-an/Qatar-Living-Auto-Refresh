@@ -50,11 +50,21 @@ def load_cookies():
     return None
 
 def load_bump_url():
-    """Load bump URL from file or environment variable"""
-    # Try from environment variable first
+    """Load bump URL from GitHub Secrets or local file"""
+    # Try from GitHub Secrets first (for GitHub Actions)
+    if IS_GITHUB_ACTIONS:
+        print("🔍 Checking for bump URL in GitHub Secrets...")
+        bump_url = os.getenv('BUMP_URL')
+        if bump_url:
+            print(f"✅ Loaded bump URL from GitHub Secrets: {bump_url}")
+            return bump_url
+        else:
+            print("ℹ️ BUMP_URL not found in GitHub Secrets, checking local files...")
+    
+    # Try from environment variable (for local development)
     bump_url = os.getenv('BUMP_URL')
     if bump_url:
-        print(f"✅ Loaded bump URL from environment: {bump_url}")
+        print(f"✅ Loaded bump URL from environment variable: {bump_url}")
         return bump_url
     
     # Try from local file
@@ -82,9 +92,9 @@ def load_bump_url():
             print(f"❌ Error loading config from {config_file}: {e}")
     
     print("💥 No bump URL found")
-    print("📁 Create bump_url.txt with your bump URL or set BUMP_URL environment variable")
+    print("📁 For GitHub Actions: Set BUMP_URL as GitHub Secret")
+    print("📁 For local development: Create bump_url.txt or set BUMP_URL environment variable")
     return None
-
 COOKIES = load_cookies()
 BUMP_URL = load_bump_url()
 
@@ -261,6 +271,130 @@ def test_cookies():
         print("⚠️ Could not verify authentication, proceeding with caution...")
         return True  
     
+def extract_username():
+    """Extract and display logged-in username"""
+    try:
+        # Decode JWT token from qat cookie to get username
+        if 'qat' in COOKIES:
+            try:
+                # The qat cookie is a JWT token, we can decode the middle part (payload)
+                qat_token = COOKIES['qat']
+                # Split JWT token (header.payload.signature)
+                parts = qat_token.split('.')
+                if len(parts) == 3:
+                    # Decode the payload (middle part)
+                    import base64
+                    import json as json_module
+                    
+                    # JWT uses base64url encoding, need to add padding if necessary
+                    payload = parts[1]
+                    padding = 4 - len(payload) % 4
+                    if padding != 4:
+                        payload += '=' * padding
+                    
+                    payload_decoded = base64.b64decode(payload)
+                    payload_json = json_module.loads(payload_decoded)
+                    
+                    # Extract username from JWT payload
+                    if 'user' in payload_json:
+                        user_data = payload_json['user']
+                        if 'alias' in user_data:
+                            return user_data['alias']
+                        elif 'name' in user_data:
+                            return user_data['name']
+                        elif 'email' in user_data:
+                            return user_data['email'].split('@')[0]
+                            
+            except Exception as e:
+                print(f"⚠️ Could not decode JWT token: {e}")
+        
+        # Try to access user profile page
+        profile_url = "https://www.qatarliving.com/user"
+        headers = {
+            "User-Agent": random.choice(USER_AGENTS),
+            "Accept": "text/html",
+        }
+        
+        response = session.get(profile_url, headers=headers, timeout=15)
+        if response.status_code != 200:
+            # Try alternative profile endpoints
+            endpoints = [
+                "https://www.qatarliving.com/my-account",
+                "https://www.qatarliving.com/account",
+                "https://www.qatarliving.com/profile"
+            ]
+            
+            for endpoint in endpoints:
+                response = session.get(endpoint, headers=headers, timeout=10)
+                if response.status_code == 200:
+                    break
+        
+        if response.status_code != 200:
+            return None
+        
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Method 1: Look for user profile link in navigation
+        profile_links = soup.find_all('a', href=lambda href: href and '/user/' in href)
+        for link in profile_links:
+            if link.text and link.text.strip() and link.text.strip() != "My Account":
+                username = link.text.strip()
+                if username and len(username) > 1:
+                    return username
+        
+        # Method 2: Look for username in meta tags
+        meta_tags = soup.find_all('meta')
+        for meta in meta_tags:
+            if meta.get('name') in ['author', 'twitter:creator'] and meta.get('content'):
+                username = meta.get('content')
+                if username and '@' in username:
+                    username = username.replace('@', '')
+                return username
+        
+        # Method 3: Look for username in page content
+        # Try to find text that looks like a username (not email, no spaces, etc.)
+        import re
+        page_text = response.text
+        
+        # Look for patterns like "Hello, username" or "Welcome, username"
+        username_patterns = [
+            r'(?:Hello|Welcome|Hi)[,\s]+([a-zA-Z0-9_\-]+)',
+            r'(?:Logged in as|You are logged in as|Signed in as)[:\s]+([a-zA-Z0-9_\-]+)',
+            r'user/([a-zA-Z0-9_\-]+)',
+        ]
+        
+        for pattern in username_patterns:
+            matches = re.search(pattern, page_text, re.IGNORECASE)
+            if matches:
+                username = matches.group(1)
+                if username and len(username) > 2 and username.lower() not in ['sign', 'login', 'logout']:
+                    return username
+        
+        # Method 4: Try to extract from destination URL (from bump URL)
+        if 'url_info' in globals() and url_info:
+            dest_parts = url_info['destination'].split('/')
+            if len(dest_parts) >= 3:
+                # Usually format is /jobseeker/username/job-title
+                if dest_parts[1] == 'jobseeker':
+                    username = dest_parts[2]
+                    if username and username != 'jobseeker':
+                        return username
+        
+        # Method 5: Look for user avatar or profile image with alt text
+        img_tags = soup.find_all('img', alt=True)
+        for img in img_tags:
+            alt_text = img.get('alt', '')
+            if alt_text and 'profile' in alt_text.lower() or 'avatar' in alt_text.lower():
+                username = alt_text.replace('Profile picture of', '').replace('Avatar of', '').strip()
+                if username and len(username) > 1:
+                    return username
+        
+        return None
+        
+    except Exception as e:
+        print(f"⚠️ Could not extract username: {e}")
+        return None
+    
 # Continue anyway and let bump fail if cookies are bad
 # ========================================
 # STEP 2: Get CSRF Token from Job Page
@@ -414,6 +548,8 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Test authentication
+        # Test authentication
+        # Test authentication
     if not test_cookies():
         print("💥 Authentication failed - cookies may be expired or invalid")
         print("🔧 Try getting fresh cookies:")
@@ -422,6 +558,38 @@ if __name__ == "__main__":
         print("   3. Go to Console tab")
         print("   4. Paste the cookie extractor script from above")
         sys.exit(1)
+    else:
+        # Extract and display username
+        username = extract_username()
+        if username:
+            print(f"👤 Logged in as: {username}")
+            # Also try to get more user info from the qat cookie
+            if 'qat' in COOKIES:
+                try:
+                    qat_token = COOKIES['qat']
+                    parts = qat_token.split('.')
+                    if len(parts) == 3:
+                        import base64
+                        import json as json_module
+                        
+                        payload = parts[1]
+                        padding = 4 - len(payload) % 4
+                        if padding != 4:
+                            payload += '=' * padding
+                        
+                        payload_decoded = base64.b64decode(payload)
+                        payload_json = json_module.loads(payload_decoded)
+                        
+                        if 'user' in payload_json:
+                            user_data = payload_json['user']
+                            if 'email' in user_data:
+                                print(f"   📧 Email: {user_data['email']}")
+                            if 'phone' in user_data:
+                                print(f"   📞 Phone: {user_data['phone']}")
+                except:
+                    pass
+        else:
+            print("👤 User is logged in (could not extract username)")
 
     print(f"🎯 Target URL: {BUMP_URL}")
     print("-" * 50)
