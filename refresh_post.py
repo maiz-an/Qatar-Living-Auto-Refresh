@@ -689,8 +689,6 @@ if __name__ == "__main__":
         sys.exit(1)
 
     # Test authentication
-        # Test authentication
-        # Test authentication
     if not test_cookies():
         print("💥 Authentication failed - cookies may be expired or invalid")
         print("🔧 Try getting fresh cookies:")
@@ -734,9 +732,7 @@ if __name__ == "__main__":
 
     print(f"🎯 Target URL: {BUMP_URL}")
     print("-" * 50)
-
-    # Rest of your code...
-
+    
     # Perform the bump
     if refresh_post(url_info):
         print("🎉 Refresh completed successfully!")
