@@ -19,9 +19,10 @@ def load_cookies():
     """Load cookies from GitHub Secrets or local file"""
     cookies = {}
     
-    # Try GitHub Secrets first
+    # Priority 1: GitHub Secrets (when running on GitHub Actions)
     if IS_GITHUB_ACTIONS:
         print("🚀 Running on GitHub Actions")
+        print("🔍 Checking for cookies in GitHub Secrets...")
         COOKIES_JSON = os.getenv('QATAR_COOKIES')
         if COOKIES_JSON:
             try:
@@ -31,9 +32,9 @@ def load_cookies():
             except json.JSONDecodeError as e:
                 print(f"❌ Error parsing cookies from GitHub Secrets: {e}")
         else:
-            print("❌ No cookies found in GitHub Secrets")
+            print("❌ QATAR_COOKIES not found in GitHub Secrets")
     
-    # Try local cookies file
+    # Priority 2: Local cookies file (for local development)
     local_cookie_file = "qatar_cookies.json"
     if os.path.exists(local_cookie_file):
         try:
@@ -45,56 +46,85 @@ def load_cookies():
             print(f"❌ Error loading cookies from {local_cookie_file}: {e}")
     
     # No cookies found
-    print("💥 No cookies found in GitHub Secrets or local file")
-    print(f"📁 Create {local_cookie_file} with your cookies JSON")
+    print("💥 No cookies found from any source!")
+    
+    # Give specific instructions based on environment
+    if IS_GITHUB_ACTIONS:
+        print("📁 For GitHub Actions: Make sure you've set QATAR_COOKIES as a GitHub Secret")
+        print("   Go to: Repository Settings → Secrets and variables → Actions")
+        print("   Click 'New repository secret'")
+        print("   Name: QATAR_COOKIES")
+        print("   Value: Your cookies JSON (from the browser console)")
+    else:
+        print(f"📁 For local development: Create {local_cookie_file} with your cookies JSON")
+        print("   Run the cookie extractor script in your browser console")
+    
     return None
 
 def load_bump_url():
     """Load bump URL from GitHub Secrets or local file"""
-    # Try from GitHub Secrets first (for GitHub Actions)
+    bump_url = None
+    
+    # Priority 1: Check GitHub Secrets first (when running on GitHub Actions)
     if IS_GITHUB_ACTIONS:
+        print("🚀 Running on GitHub Actions")
         print("🔍 Checking for bump URL in GitHub Secrets...")
         bump_url = os.getenv('BUMP_URL')
         if bump_url:
-            print(f"✅ Loaded bump URL from GitHub Secrets: {bump_url}")
+            print(f"✅ Loaded bump URL from GitHub Secrets: {bump_url[:60]}...")
             return bump_url
         else:
-            print("ℹ️ BUMP_URL not found in GitHub Secrets, checking local files...")
+            print("❌ BUMP_URL not found in GitHub Secrets")
     
-    # Try from environment variable (for local development)
+    # Priority 2: Check environment variable (for local development)
     bump_url = os.getenv('BUMP_URL')
     if bump_url:
-        print(f"✅ Loaded bump URL from environment variable: {bump_url}")
+        print(f"✅ Loaded bump URL from environment variable: {bump_url[:60]}...")
         return bump_url
     
-    # Try from local file
+    # Priority 3: Check local file (for local development)
     bump_file = "bump_url.txt"
     if os.path.exists(bump_file):
         try:
             with open(bump_file, 'r') as f:
                 bump_url = f.read().strip()
             if bump_url:
-                print(f"✅ Loaded bump URL from {bump_file}: {bump_url}")
+                print(f"✅ Loaded bump URL from {bump_file}: {bump_url[:60]}...")
                 return bump_url
         except Exception as e:
             print(f"❌ Error loading bump URL from {bump_file}: {e}")
     
-    # Try from JSON config file
+    # Priority 4: Check JSON config file
     config_file = "config.json"
     if os.path.exists(config_file):
         try:
             with open(config_file, 'r') as f:
                 config = json.load(f)
             if config.get('bump_url'):
-                print(f"✅ Loaded bump URL from {config_file}: {config['bump_url']}")
-                return config['bump_url']
+                bump_url = config['bump_url']
+                print(f"✅ Loaded bump URL from {config_file}: {bump_url[:60]}...")
+                return bump_url
         except Exception as e:
             print(f"❌ Error loading config from {config_file}: {e}")
     
-    print("💥 No bump URL found")
-    print("📁 For GitHub Actions: Set BUMP_URL as GitHub Secret")
-    print("📁 For local development: Create bump_url.txt or set BUMP_URL environment variable")
+    # No bump URL found anywhere
+    print("💥 No bump URL found from any source!")
+    
+    # Give specific instructions based on environment
+    if IS_GITHUB_ACTIONS:
+        print("📁 For GitHub Actions: Make sure you've set BUMP_URL as a GitHub Secret")
+        print("   Go to: Repository Settings → Secrets and variables → Actions")
+        print("   Click 'New repository secret'")
+        print("   Name: BUMP_URL")
+        print("   Value: Your full bump URL (e.g., https://www.qatarliving.com/bump/node/12345678?destination=...)")
+    else:
+        print("📁 For local development:")
+        print("   1. Create bump_url.txt file with your bump URL")
+        print("   2. Or set BUMP_URL environment variable")
+        print("   3. Or create config.json with 'bump_url' field")
+    
     return None
+
 COOKIES = load_cookies()
 BUMP_URL = load_bump_url()
 
@@ -521,7 +551,7 @@ if __name__ == "__main__":
     print("-" * 50)
 
     if not COOKIES:
-        print("💥 No cookies available")
+        print("💥 No cookies available - cannot proceed")
         if not IS_GITHUB_ACTIONS:
             print("-" * 50)
             print("🔄 Need fresh cookies? Run this in browser console:")
@@ -529,8 +559,8 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if not BUMP_URL:
-        print("💥 No bump URL available")
-        print("📝 Create bump_url.txt with your URL like:")
+        print("💥 No bump URL available - cannot proceed")
+        print("📝 Example URL format:")
         print("https://www.qatarliving.com/bump/node/46590548?destination=/jobseeker/username/job-name")
         sys.exit(1)
 

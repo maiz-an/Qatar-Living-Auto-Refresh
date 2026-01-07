@@ -26,5 +26,6 @@ jobs:
     - name: Run Qatar Living Auto Refresh
       env:
         QATAR_COOKIES: ${{ secrets.QATAR_COOKIES }}
+        BUMP_URL: ${{ secrets.BUMP_URL }}
       run: |
         python refresh_post.py
